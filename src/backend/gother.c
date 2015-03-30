@@ -180,7 +180,7 @@ STATIC void rd_compute()
                 }
         }
 }
-
+
 /***************************
  * Support routine for constprop().
  *      Visit each elem in order
@@ -347,7 +347,7 @@ STATIC void conpropwalk(elem *n,vec_t IN)
             }
         }
 }
-
+
 /******************************
  * Give error if there are no reaching defs for variable v.
  */
@@ -439,7 +439,7 @@ STATIC void chkrd(elem *n,list_t rdlist)
     //elem_print(n);
 #endif
 }
-
+
 /**********************************
  * Look through the vector of reaching defs (IN) to see
  * if all defs of n are of the same constant. If so, replace
@@ -558,7 +558,7 @@ STATIC elem * chkprop(elem *n,list_t rdlist)
 noprop:
     return NULL;
 }
-
+
 /***********************************
  * Find all the reaching defs of OPvar e.
  * Put into a linked list, or just set the RD bits in a vector.
@@ -866,7 +866,7 @@ STATIC int loopcheck(block *start,block *inc,block *rel)
     }
     return FALSE;
 }
-
+
 /****************************
  * Do copy propagation.
  * Copy propagation elems are of the form OPvar=OPvar, and they are
@@ -1088,32 +1088,51 @@ STATIC void cpwalk(register elem *n,vec_t IN)
                 }
                 if (foundelem)          /* if we can do the copy prop   */
                 {
-                        cmes3("Copyprop, from '%s' to '%s'\n",
-                            (v->Sident) ? (char *)v->Sident : "temp",
-                            (f->Sident) ? (char *)f->Sident : "temp");
-
+#ifdef DEBUG
+                        if (debugc)
+                        {
+                            printf("Copyprop, from '%s'(%d) to '%s'(%d)\n",
+                                (v->Sident) ? (char *)v->Sident : "temp", v->Ssymnum,
+                                (f->Sident) ? (char *)f->Sident : "temp", f->Ssymnum);
+                        }
+#endif
                         type *nt = n->ET;
                         el_copy(n,foundelem->E2);
                         n->Ety = ty;    // retain original type
                         n->ET = nt;
 
-                        changes++;
-
-                        // Mark ones we can no longer use
-                        foreach(i,exptop,IN)
+                        /* original => rewrite
+                         *  v = f
+                         *  g = v   => g = f
+                         *  f = x
+                         *  d = g   => d = f !!error
+                         * Therefore, if g appears as an rvalue in expnod[], then recalc
+                         */
+                        for (size_t i = 1; i < exptop; ++i)
                         {
-                            if (f == expnod[i]->E2->EV.sp.Vsym)
-                            {   recalc++;
+                            if (expnod[i]->E2 == n)
+                            {
+                                symbol *g = expnod[i]->E1->EV.sp.Vsym;
+                                for (size_t j = 1; j < exptop; ++j)
+                                {
+                                    if (expnod[j]->E2->EV.sp.Vsym == g)
+                                    {
+                                        ++recalc;
+                                        break;
+                                    }
+                                }
                                 break;
                             }
                         }
+
+                        changes++;
                 }
                 //else dbg_printf("not found\n");
             noprop:
                 ;
         }
 }
-
+
 /********************************
  * Remove dead assignments. Those are assignments to a variable v
  * for which there are no subsequent uses of v.
@@ -1272,7 +1291,7 @@ STATIC unsigned numasg(elem *e)
   return OTunary(e->Eoper) ? numasg(e->E1) :
         OTbinary(e->Eoper) ? numasg(e->E1) + numasg(e->E2) : 0;
 }
-
+
 /******************************
  * Tree walk routine for rmdeadass().
  *      DEAD    =       assignments which are dead
@@ -1497,7 +1516,7 @@ STATIC void accumda(elem *n,vec_t DEAD, vec_t POSS)
                 break;
         }
 }
-
+
 /***************************
  * Mark all dead variables. Only worry about register candidates.
  * Compute live ranges for register candidates.
@@ -1589,7 +1608,7 @@ STATIC void dvwalk(register elem *n,register unsigned i)
         break;
   }
 }
-
+
 /*********************************
  * Optimize very busy expressions (VBEs).
  */
@@ -1759,7 +1778,7 @@ void verybusyexp()
         } /* for */
         vec_free(blockseen);
 }
-
+
 /****************************
  * Return TRUE if elem j is killed somewhere
  * between b and bp.

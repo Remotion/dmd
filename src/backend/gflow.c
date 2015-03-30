@@ -54,7 +54,7 @@ STATIC void accumlv(vec_t GEN , vec_t KILL , elem *n);
 STATIC void accumvbe(vec_t GEN , vec_t KILL , elem *n);
 STATIC void accumrd(vec_t GEN , vec_t KILL , elem *n);
 STATIC void flowaecp(void);
-
+
 /***************** REACHING DEFINITIONS *********************/
 
 /************************************
@@ -128,7 +128,7 @@ void flowrd()
         }
 #endif
 }
-
+
 /***************************
  * Compute Bgen and Bkill for RDs.
  */
@@ -181,7 +181,7 @@ STATIC void rdgenkill()
                 b->Boutrd = vec_calloc(deftop);
         }
 }
-
+
 /**********************
  * Compute # of definition elems (deftop).
  */
@@ -234,7 +234,7 @@ STATIC void asgdefelems(block *b,register elem *n)
                 deftop++;
         }
 }
-
+
 /*************************************
  * Allocate and compute rd GEN and KILL.
  */
@@ -307,7 +307,7 @@ STATIC void accumrd(vec_t GEN,vec_t KILL,elem *n)
         if (OTdef(op))                  /* if definition elem           */
                 updaterd(n,GEN,KILL);
 }
-
+
 /******************** AVAILABLE EXPRESSIONS ***********************/
 
 /************************************
@@ -455,7 +455,7 @@ STATIC void flowaecp()
         } while (anychng);
         vec_free(tmp);
 }
-
+
 /******************************
  * A variable to avoid parameter overhead to asgexpelems().
  */
@@ -613,7 +613,7 @@ STATIC void aecpgenkill()
                 b->Bout = vec_calloc(exptop);
         }
 }
-
+
 /*****************************
  * Accumulate number of expressions in exptop.
  * Set NFLaecp as a flag indicating an AE elem.
@@ -681,7 +681,7 @@ STATIC void numcpelems(elem *n)
   }
   n->Nflags &= ~NFLaecp;
 }
-
+
 /********************************
  * Assign ae (or cp) elems to expnod[] (in order of evaluation).
  */
@@ -710,7 +710,7 @@ STATIC void asgexpelems(elem *n)
   else
         n->Eexp = 0;
 }
-
+
 /********************************
  * Compute defkill, starkill and vptrkill vectors.
  *      starkill:       set of expressions killed when a variable is
@@ -774,7 +774,7 @@ STATIC void defstarkill()
 
 #if 1
 /* The following program fails for this:
-import std.c.stdio;
+import core.stdc.stdio;
 
 class Foo
 {
@@ -868,7 +868,7 @@ void genkillae()
                 }
         }
 }
-
+
 /************************************
  * Allocate and compute KILL and GEN vectors for a elem.
  */
@@ -974,6 +974,7 @@ STATIC void accumaecpx(elem *n)
             vec_free(Kr);
             break;
         }
+        case OPddtor:
         case OPasm:
             assert(!n->Eexp);                   // no ASM available expressions
             vec_set(KILL);                      // KILL everything
@@ -1119,7 +1120,7 @@ STATIC void accumaecpx(elem *n)
         }
     }
 }
-
+
 /************************* LIVE VARIABLES **********************/
 
 /*********************************
@@ -1210,7 +1211,7 @@ void flowlv()
         }
 #endif
 }
-
+
 /***********************************
  * Compute Bgen and Bkill for LVs.
  * Allocate Binlv and Boutlv vectors.
@@ -1248,7 +1249,7 @@ STATIC void lvgenkill()
         vec_free(ambigsym);             /* dump any existing one        */
         ambigsym = NULL;
 }
-
+
 /*****************************
  * Allocate and compute KILL and GEN for live variables.
  */
@@ -1424,7 +1425,7 @@ STATIC void accumlv(vec_t GEN,vec_t KILL,elem *n)
         break;
     }
 }
-
+
 /********************* VERY BUSY EXPRESSIONS ********************/
 
 /**********************************************
@@ -1511,7 +1512,7 @@ void flowvbe()
         } while (anychng);      /* while any changes occurred to any Bin */
         vec_free(tmp);
 }
-
+
 /*************************************
  * Accumulate GEN and KILL sets for VBEs for this elem.
  */

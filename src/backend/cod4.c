@@ -20,6 +20,7 @@
 #include        "code.h"
 #include        "type.h"
 #include        "global.h"
+#include        "xmm.h"
 
 static char __file__[] = __FILE__;      /* for tassert.h                */
 #include        "tassert.h"
@@ -360,6 +361,21 @@ code *cdeq(elem *e,regm_t *pretregs)
   if (retregs == 0)                     /* if no return value           */
   {     int fl;
 
+        /* If registers are tight, and we might need them for the lvalue,
+         * prefer to not use them for the rvalue
+         */
+        bool plenty = true;
+        if (e1->Eoper == OPind)
+        {
+            /* Will need 1 register for evaluation, +2 registers for
+             * e1's addressing mode
+             */
+            regm_t m = allregs & ~regcon.mvar;  // mask of non-register variables
+            m &= m - 1;         // clear least significant bit
+            m &= m - 1;         // clear least significant bit
+            plenty = m != 0;    // at least 3 registers
+        }
+
         if ((e2oper == OPconst ||       /* if rvalue is a constant      */
              e2oper == OPrelconst &&
              !(I64 && (config.flags3 & CFG3pic || config.exe == EX_WIN64)) &&
@@ -369,7 +385,7 @@ code *cdeq(elem *e,regm_t *pretregs)
               && !(e2->EV.sp.Vsym->ty() & mTYcs)
 #endif
             ) &&
-            !evalinregister(e2) &&
+            !(evalinregister(e2) && plenty) &&
             !e1->Ecount)        /* and no CSE headaches */
         {
             // Look for special case of (*p++ = ...), where p is a register variable
@@ -2570,7 +2586,7 @@ code *longcmp(elem *e,bool jcond,unsigned fltarg,code *targ)
   freenode(e);
   return cat6(cl,cr,c,cmsw,clsw,ce);
 }
-
+
 /*****************************
  * Do conversions.
  * Depends on OPd_s32 and CLIBdbllng being in sequence.
@@ -3646,6 +3662,63 @@ code *cdbscan(elem *e, regm_t *pretregs)
 
     return cat3(cl,cg,fixresult(e,retregs,pretregs));
 }
+
+/************************
+ * OPpopcnt operator
+ */
+
+code *cdpopcnt(elem *e,regm_t *pretregs)
+{
+    code *cl,*cg;
+    code cs;
+
+    //printf("cdpopcnt()\n");
+    //elem_print(e);
+    assert(!I16);
+    if (*pretregs == 0)
+        return codelem(e->E1,pretregs,FALSE);
+
+    tym_t tyml = tybasic(e->E1->Ety);
+
+    int sz = tysize[tyml];
+    assert(sz == 2 || sz == 4 || (sz == 8 && I64));     // no byte op
+
+    if ((e->E1->Eoper == OPind && !e->E1->Ecount) || e->E1->Eoper == OPvar)
+    {
+        cl = getlvalue(&cs, e->E1, RMload);     // get addressing mode
+    }
+    else
+    {
+        regm_t retregs = allregs;
+        cl = codelem(e->E1, &retregs, FALSE);
+        reg_t reg = findreg(retregs);
+        cs.Irm = modregrm(3,0,reg & 7);
+        cs.Iflags = 0;
+        cs.Irex = 0;
+        if (reg & 8)
+            cs.Irex |= REX_B;
+    }
+
+    regm_t retregs = *pretregs & allregs;
+    if  (!retregs)
+        retregs = allregs;
+    unsigned reg;
+    cg = allocreg(&retregs, &reg, e->Ety);
+
+    cs.Iop = POPCNT;            // POPCNT reg,EA
+    code_newreg(&cs, reg);
+    if (sz == SHORTSIZE)
+        cs.Iflags |= CFopsize;
+    if (*pretregs & mPSW)
+        cs.Iflags |= CFpsw;
+    cg = gen(cg,&cs);
+    if (sz == 8)
+        code_orrex(cg, REX_W);
+    *pretregs &= mBP | ALLREGS;             // flags already set
+
+    return cat3(cl,cg,fixresult(e,retregs,pretregs));
+}
+
 
 /*******************************************
  * Generate code for OPpair, OPrpair.

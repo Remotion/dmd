@@ -365,6 +365,23 @@ void test11223()
 }
 
 /************************************/
+
+
+void foo3918()
+{
+    import core.stdc.stdlib : alloca;
+    void[] mem = alloca(1024)[0..1024];
+}
+
+void test3918()
+{
+    foreach(i; 0 .. 10_000_000)
+    {
+        foo3918();
+    }
+}
+
+/************************************/
 // 11314
 
 struct Tuple11314(T...)
@@ -514,12 +531,106 @@ class Foo12080
 }
 
 /**********************************/
+// 13503
+
+void f13503a(string[] s...)
+{
+    assert(s[0] == "Cheese");
+}
+
+auto f13503b(string arg)
+{
+    string result = arg;
+    return result;
+}
+
+string f13503c(string arg)
+{
+    string result = arg;
+    return result;
+}
+
+void test13503()
+{
+    f13503a(f13503b("Cheese"));
+    f13503a(f13503c("Cheese"));
+}
+
+/**********************************/
+// 14267
+
+// EXTRA_SOURCES: imports/a14267.d
+import imports.a14267;
+
+void test14267()
+{
+    foreach (m; __traits(allMembers, SysTime14267))
+    {
+        static if (is(typeof(__traits(getMember, SysTime14267, m))))
+        {
+            foreach (func; __traits(getOverloads, SysTime14267, m))
+            {
+                auto prot = __traits(getProtection, func);
+                static if (__traits(isStaticFunction, func))
+                {
+                    static assert(func.stringof == "min()");
+                    auto result = func;
+                }
+            }
+        }
+    }
+}
+
+/**********************************/
+// https://issues.dlang.org/show_bug.cgi?id=14306
+
+struct MapResult(alias fun)
+{
+    void front()
+    {
+//	while (1) { break; }
+        fun(1);
+    }
+}
+
+void bar(R)(R r)
+{
+    foreach (i; 0..100)
+    {
+	r.front();
+    }
+}
+
+struct S {
+    int x;
+    int bump() {
+	while (1) { break; }
+	++x;
+	return x;
+    }
+}
+
+void fun(ref S s) {
+    MapResult!(y => s.bump())().bar;
+//    MapResult!((int x) => s.bump())().bar;
+
+
+    if (s.x != 100) assert(0);
+}
+
+void test14306() {
+    S t;
+    fun(t);
+}
+
+/**********************************/
 
 int main()
 {
     test1();
     test2();
     test3();
+    test3918();
     test4();
     test5();
     test9356();
@@ -533,6 +644,8 @@ int main()
     test11224();
     test11322();
     test11394();
+    test13503();
+    test14306();
 
     printf("Success\n");
     return 0;

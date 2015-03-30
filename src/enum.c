@@ -36,7 +36,7 @@ EnumDeclaration::EnumDeclaration(Loc loc, Identifier *id, Type *memtype)
     defaultval = NULL;
     sinit = NULL;
     isdeprecated = false;
-    protection = PROTundefined;
+    protection = Prot(PROTundefined);
     parent = NULL;
     added = false;
     inuse = 0;
@@ -44,27 +44,10 @@ EnumDeclaration::EnumDeclaration(Loc loc, Identifier *id, Type *memtype)
 
 Dsymbol *EnumDeclaration::syntaxCopy(Dsymbol *s)
 {
-    Type *t = NULL;
-    if (memtype)
-        t = memtype->syntaxCopy();
-
-    EnumDeclaration *ed;
-    if (s)
-    {   ed = (EnumDeclaration *)s;
-        ed->memtype = t;
-    }
-    else
-        ed = new EnumDeclaration(loc, ident, t);
-    ScopeDsymbol::syntaxCopy(ed);
-    if (isAnonymous())
-    {
-        for (size_t i = 0; i < members->dim; i++)
-        {
-            EnumMember *em = (*members)[i]->isEnumMember();
-            em->ed = ed;
-        }
-    }
-    return ed;
+    assert(!s);
+    EnumDeclaration *ed = new EnumDeclaration(loc, ident,
+        memtype ? memtype->syntaxCopy() : NULL);
+    return ScopeDsymbol::syntaxCopy(ed);
 }
 
 void EnumDeclaration::setScope(Scope *sc)
@@ -116,9 +99,6 @@ void EnumDeclaration::semantic(Scope *sc)
 {
     //printf("EnumDeclaration::semantic(sd = %p, '%s') %s\n", sc->scopesym, sc->scopesym->toChars(), toChars());
     //printf("EnumDeclaration::semantic() %p %s\n", this, toChars());
-    if (!members && !memtype)               // enum ident;
-        return;
-
     if (semanticRun >= PASSsemanticdone)
         return;             // semantic() already completed
     if (semanticRun == PASSsemantic)
@@ -129,10 +109,7 @@ void EnumDeclaration::semantic(Scope *sc)
         semanticRun = PASSsemanticdone;
         return;
     }
-    semanticRun = PASSsemantic;
-
-    if (!symtab)
-        symtab = new DsymbolTable();
+    unsigned dprogress_save = Module::dprogress;
 
     Scope *scx = NULL;
     if (scope)
@@ -142,14 +119,24 @@ void EnumDeclaration::semantic(Scope *sc)
         scope = NULL;
     }
 
-    unsigned dprogress_save = Module::dprogress;
+    parent = sc->parent;
+    type = type->semantic(loc, sc);
 
+    protection = sc->protection;
     if (sc->stc & STCdeprecated)
         isdeprecated = true;
     userAttribDecl = sc->userAttribDecl;
 
-    parent = sc->parent;
-    protection = sc->protection;
+    semanticRun = PASSsemantic;
+
+    if (!members && !memtype)               // enum ident;
+    {
+        semanticRun = PASSsemanticdone;
+        return;
+    }
+
+    if (!symtab)
+        symtab = new DsymbolTable();
 
     /* The separate, and distinct, cases are:
      *  1. enum { ... }
@@ -160,8 +147,6 @@ void EnumDeclaration::semantic(Scope *sc)
      *  6. enum ident;
      */
 
-    type = type->semantic(loc, sc);
-
     if (memtype)
     {
         memtype = memtype->semantic(loc, sc);
@@ -169,7 +154,8 @@ void EnumDeclaration::semantic(Scope *sc)
         /* Check to see if memtype is forward referenced
          */
         if (memtype->ty == Tenum)
-        {   EnumDeclaration *sym = (EnumDeclaration *)memtype->toDsymbol(sc);
+        {
+            EnumDeclaration *sym = (EnumDeclaration *)memtype->toDsymbol(sc);
             if (!sym->memtype || !sym->members || !sym->symtab || sym->scope)
             {
                 // memtype is forward referenced, so try again later
@@ -261,8 +247,10 @@ void EnumDeclaration::semantic(Scope *sc)
             }
         }
         else
+        {
             // Otherwise enum members are in the EnumDeclaration's symbol table
             scopesym = this;
+        }
 
         for (size_t i = 0; i < members->dim; i++)
         {
@@ -284,7 +272,7 @@ void EnumDeclaration::semantic(Scope *sc)
     //printf("defaultval = %lld\n", defaultval);
 
     //if (defaultval) printf("defaultval: %s %s\n", defaultval->toChars(), defaultval->type->toChars());
-    //members->print();
+    //printf("members = %s\n", members->toChars());
 }
 
 /******************************
@@ -443,42 +431,6 @@ bool EnumDeclaration::oneMember(Dsymbol **ps, Identifier *ident)
     return Dsymbol::oneMember(ps, ident);
 }
 
-void EnumDeclaration::toCBuffer(OutBuffer *buf, HdrGenState *hgs)
-{
-    buf->writestring("enum ");
-    if (ident)
-    {   buf->writestring(ident->toChars());
-        buf->writeByte(' ');
-    }
-    if (memtype)
-    {
-        buf->writestring(": ");
-        memtype->toCBuffer(buf, NULL, hgs);
-    }
-    if (!members)
-    {
-        buf->writeByte(';');
-        buf->writenl();
-        return;
-    }
-    buf->writenl();
-    buf->writeByte('{');
-    buf->writenl();
-    buf->level++;
-    for (size_t i = 0; i < members->dim; i++)
-    {
-        EnumMember *em = (*members)[i]->isEnumMember();
-        if (!em)
-            continue;
-        em->toCBuffer(buf, hgs);
-        buf->writeByte(',');
-        buf->writenl();
-    }
-    buf->level--;
-    buf->writeByte('}');
-    buf->writenl();
-}
-
 Type *EnumDeclaration::getType()
 {
     return type;
@@ -494,7 +446,7 @@ bool EnumDeclaration::isDeprecated()
     return isdeprecated;
 }
 
-PROT EnumDeclaration::prot()
+Prot EnumDeclaration::prot()
 {
     return protection;
 }
@@ -503,8 +455,10 @@ Dsymbol *EnumDeclaration::search(Loc loc, Identifier *ident, int flags)
 {
     //printf("%s.EnumDeclaration::search('%s')\n", toChars(), ident->toChars());
     if (scope)
+    {
         // Try one last time to resolve this enum
         semantic(scope);
+    }
 
     if (!members || !symtab || scope)
     {
@@ -532,41 +486,10 @@ EnumMember::EnumMember(Loc loc, Identifier *id, Expression *value, Type *type)
 
 Dsymbol *EnumMember::syntaxCopy(Dsymbol *s)
 {
-    Expression *e = NULL;
-    if (value)
-        e = value->syntaxCopy();
-
-    Type *t = NULL;
-    if (type)
-        t = type->syntaxCopy();
-
-    EnumMember *em;
-    if (s)
-    {   em = (EnumMember *)s;
-        em->loc = loc;
-        em->value = e;
-        em->type = t;
-        em->origValue = origValue ? origValue->syntaxCopy() : NULL;
-    }
-    else
-    {
-        em = new EnumMember(loc, ident, e, t);
-        em->origValue = origValue ? origValue->syntaxCopy() : NULL;
-    }
-    return em;
-}
-
-void EnumMember::toCBuffer(OutBuffer *buf, HdrGenState *hgs)
-{
-    if (type)
-        type->toCBuffer(buf, ident, hgs);
-    else
-        buf->writestring(ident->toChars());
-    if (value)
-    {
-        buf->writestring(" = ");
-        value->toCBuffer(buf, hgs);
-    }
+    assert(!s);
+    return new EnumMember(loc, ident,
+        value ? value->syntaxCopy() : NULL,
+        type ? type->syntaxCopy() : NULL);
 }
 
 const char *EnumMember::kind()
@@ -624,6 +547,33 @@ void EnumMember::semantic(Scope *sc)
             {
                 ed->errors = true;
                 goto Lerrors;
+            }
+            if (ed->memtype->ty != Terror)
+            {
+                /* Bugzilla 11746: All of named enum members should have same type
+                 * with the first member. If the following members were referenced
+                 * during the first member semantic, their types should be unified.
+                 */
+                for (size_t i = 0; i < ed->members->dim; i++)
+                {
+                    EnumMember *em = (*ed->members)[i]->isEnumMember();
+                    if (!em || em == this || em->semanticRun < PASSsemanticdone || em->type)
+                        continue;
+
+                    //printf("[%d] em = %s, em->semanticRun = %d\n", i, toChars(), em->semanticRun);
+                    Expression *ev = em->value;
+                    ev = ev->implicitCastTo(sc, ed->memtype);
+                    ev = ev->ctfeInterpret();
+                    ev = ev->castTo(sc, ed->type);
+                    if (ev->op == TOKerror)
+                        ed->errors = true;
+                    em->value = ev;
+                }
+                if (ed->errors)
+                {
+                    ed->memtype = Type::terror;
+                    goto Lerrors;
+                }
             }
         }
 
@@ -761,10 +711,11 @@ Expression *EnumMember::getVarExp(Loc loc, Scope *sc)
         vd->storage_class = STCmanifest;
         vd->semantic(sc);
 
-        vd->protection = ed->isAnonymous() ? ed->protection : PROTpublic;
+        vd->protection = ed->isAnonymous() ? ed->protection : Prot(PROTpublic);
         vd->parent = ed->isAnonymous() ? ed->parent : ed;
         vd->userAttribDecl = ed->isAnonymous() ? ed->userAttribDecl : NULL;
     }
+    checkAccess(loc, sc, NULL, vd);
     Expression *e = new VarExp(loc, vd);
     return e->semantic(sc);
 }

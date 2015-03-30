@@ -1,5 +1,5 @@
 
-import std.c.stdio;
+import core.stdc.stdio;
 
 void testgoto()
 {
@@ -218,6 +218,20 @@ void testarrayinit()
 
 ///////////////////////
 
+void test13023(ulong n)
+{
+    static void func(bool b) {}
+
+    ulong k = 0;
+
+    func(k >= n / 2);
+
+    if (k >= n / 2)
+        assert(0);
+}
+
+///////////////////////
+
 struct U { int a; union { char c; int d; } long b; }
 
 U f = { b:3, d:2, a:1 };
@@ -418,6 +432,27 @@ void test12095(int k)
     !e ? !e || vfunc() : k || assert(0);
 }
 
+
+////////////////////////////////////////////////////////////////////////
+
+
+bool test3918a( float t, real u )
+{
+	printf("%f\n", u );
+	return t && u;
+}
+
+bool test3918b( real t, float u )
+{
+	printf("%f\n", t );
+	return t && u;
+}
+
+void test3918()
+{
+	assert(test3918a(float.nan, real.nan));
+	assert(test3918b(real.nan, float.nan));
+}
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -877,6 +912,19 @@ void testbt()
 
 ////////////////////////////////////////////////////////////////////////
 
+void test13383()
+{
+    foreach (k; 32..33)
+    {
+        if (1L & (1L << k))
+        {
+            assert(0);
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////
+
 int andand1(int c)
 {
     return (c > 32 && c != 46 && c != 44
@@ -1034,6 +1082,27 @@ void test10715()
 
 ////////////////////////////////////////////////////////////////////////
 
+ptrdiff_t compare12164(A12164* rhsPA, A12164* zis)
+{
+    if (*rhsPA == *zis)
+        return 0;
+    return ptrdiff_t.min;
+}
+
+struct A12164
+{
+    int a;
+}
+
+void test12164()
+{
+    auto a = A12164(3);
+    auto b = A12164(2);
+    assert(compare12164(&a, &b));
+}
+
+////////////////////////////////////////////////////////////////////////
+
 int foo10678(char[5] txt)
 {
     return txt[0] + txt[1] + txt[4];
@@ -1088,6 +1157,52 @@ int bug8525(int[] devt)
 
 ////////////////////////////////////////////////////////////////////////
 
+void func13190(int) {}
+
+struct Struct13190
+{
+    ulong a;
+    uint b;
+};
+
+__gshared Struct13190* table13190 =
+[
+    Struct13190(1, 1),
+    Struct13190(0, 2)
+];
+
+void test13190()
+{
+    for (int i = 0; table13190[i].a; i++)
+    {
+        ulong tbl = table13190[i].a;
+        func13190(i);
+        if (1 + tbl)
+        {
+            if (tbl == 0x80000)
+                return;
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////
+
+double foo13485(double c, double d)
+{
+    // This must not be optimized to c += (d + d)
+    c += d;
+    c += d;
+    return c;
+}
+
+void test13485()
+{
+    enum double d = 0X1P+1023;
+    assert(foo13485(-d, d) == d);
+}
+
+////////////////////////////////////////////////////////////////////////
+
 void test12833a(int a)
 {
     long x = cast(long)a;
@@ -1110,6 +1225,95 @@ void test12833()
     test12833a(0x1_0000);
 }
 
+/***********************************************/
+
+struct Point9449
+{
+    double f = 3.0;
+    double g = 4.0;
+}
+
+void test9449()
+{
+    Point9449[1] arr;
+    if (arr[0].f != 3.0) assert(0);
+    if (arr[0].g != 4.0) assert(0);
+}
+
+////////////////////////////////////////////////////////////////////////
+// https://issues.dlang.org/show_bug.cgi?id=12057
+
+bool prop12057(real x) { return false; }
+double f12057(real) { return double.init; }
+void test12057()
+{
+    real fc = f12057(real.init);
+    if (fc == 0 || fc.prop12057) {}
+}
+
+
+////////////////////////////////////////////////////////////////////////
+ 
+long modulo24 (long ticks)
+{
+    ticks %= 864000000000;
+    if (ticks < 0)
+        ticks += 864000000000;
+    return ticks;
+}
+
+void test13784()
+{
+    assert (modulo24(-141600000000) == 722400000000);
+}
+
+
+////////////////////////////////////////////////////////////////////////
+
+struct S13969 {
+    int x, y;
+}
+
+int test13969(const S13969* f) {
+    return 0 % ((f.y > 0) ? f.x / f.y : f.x / -f.y);
+}
+
+////////////////////////////////////////////////////////////////////////
+
+void test14220()
+{
+    auto a = toString(14);
+
+    printf("a.ptr = %p, a.length = %d\n", a.ptr, cast(int)a.length);
+    return;
+}
+
+auto toString(int value)
+{
+    uint mValue = value;
+
+    char[int.sizeof * 3] buffer = void;
+    size_t index = buffer.length;
+
+    do
+    {
+        uint div = cast(int)(mValue / 10);
+        char mod = mValue % 10 + '0';
+        buffer[--index] = mod;        // Line 22
+        mValue = div;
+    } while (mValue);
+
+    //printf("buffer.ptr = %p, index = %d\n", buffer.ptr, cast(int)index);
+    return dup(buffer[index .. $]);
+}
+
+char[] dup(char[] a)
+{
+    //printf("a.ptr = %p, a.length = %d\n", a.ptr, cast(int)a.length);
+    a[0] = 1;       // segfault
+    return a;
+}
+
 ////////////////////////////////////////////////////////////////////////
  
 int main()
@@ -1120,6 +1324,7 @@ int main()
     testbreak();
     teststringswitch();
     teststrarg();
+    test12164();
     testsizes();
     testarrayinit();
     testU();
@@ -1128,6 +1333,7 @@ int main()
     test8658();
     testfastudiv();
     testfastdiv();
+    test3918();
     test12051();
     testdocond();
     testnegcom();
@@ -1138,11 +1344,19 @@ int main()
     testandand();
     testor_combine();
     testshrshl();
+    test13383();
+    test13190();
+    test13485();
     test10639();
     test10715();
     test10678();
     test7565();
+    test13023(0x10_0000_0000);
     test12833();
+    test9449();
+    test12057();
+    test13784();
+    test14220();
     printf("Success\n");
     return 0;
 }

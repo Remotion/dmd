@@ -160,7 +160,7 @@ void builddags()
                 }
             }
 }
-
+
 /**********************************
  */
 
@@ -258,6 +258,7 @@ STATIC void aewalk(register elem **pn,register vec_t ae)
             case OPdctor:
                 break;
             case OPasm:
+            case OPddtor:
                 vec_clear(ae);          // kill everything
                 return;
 
@@ -351,7 +352,7 @@ STATIC void aewalk(register elem **pn,register vec_t ae)
             vec_setbit(n->Eexp,ae);     /* mark this elem as available  */
         }
 }
-
+
 /**************************
  * Remove a CSE.
  * Input:
@@ -369,7 +370,7 @@ STATIC elem * delcse(elem **pe)
         el_copy(e,*pe);
 #ifdef DEBUG
         if (debugc)
-        {       dbg_printf("deleting unprofitable CSE (");
+        {       dbg_printf("deleting unprofitable CSE %p (", *pe);
                 WReqn(e);
                 dbg_printf(")\n");
         }
@@ -433,6 +434,7 @@ STATIC void removecses(elem **pe)
         elem *e;
 
 L1:     e = *pe;
+        //printf("  removecses(%p) ", e); WReqn(e); printf("\n");
         assert(e);
         elem_debug(e);
         if (e->Nflags & NFLdelcse && e->Ecount)
@@ -520,6 +522,10 @@ L1:     e = *pe;
                 e1->E1 = NULL;
                 e1->E2 = NULL;
                 el_free(e1);
+
+                removecses(&(e->E1));
+                pe = &(e->E2);
+                goto L1;
             }
         }
         else if (OTbinary(op))
@@ -533,7 +539,17 @@ L1:     e = *pe;
 #endif
                    )
                         e = delcse(pe);
-                removecses(&(e->E2));
+                if (ERTOL(e))
+                {
+                    removecses(&(e->E2));
+                    pe = &(e->E1);
+                }
+                else
+                {
+                    removecses(&(e->E1));
+                    pe = &(e->E2);
+                }
+                goto L1;
         }
         else /* leaf node */
         {
@@ -542,7 +558,7 @@ L1:     e = *pe;
         pe = &(e->E1);
         goto L1;
 }
-
+
 /*****************************************
  * Do optimizations based on if we know an expression is
  * 0 or !=0, even though we don't know anything else.
@@ -619,7 +635,7 @@ void boolopt()
         vec_free(aevec);
         vec_free(aevecval);
 }
-
+
 /****************************
  * Walk tree, replacing bool expressions that we know
  *      ae = vector of available boolean expressions

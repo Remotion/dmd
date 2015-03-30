@@ -56,9 +56,10 @@ STATIC unsigned cs_comphash(elem *);
 STATIC void addhcstab(elem *,int);
 STATIC void touchlvalue(elem *);
 STATIC void touchfunc(int);
-STATIC void touchstar(void);
+STATIC void touchstar();
 STATIC void touchaccess(elem *);
-
+STATIC void touchall();
+
 /*******************************
  * Eliminate common subexpressions across extended basic blocks.
  * String together as many blocks as we can.
@@ -152,7 +153,7 @@ void cgcs_term()
     hcstab = NULL;
     hcsmax = 0;
 }
-
+
 /*************************
  * Eliminate common subexpressions for an element.
  */
@@ -282,6 +283,9 @@ STATIC void ecom(elem **pe)
         return;
 
     case OPddtor:
+        touchall();
+        ecom(&e->E1);
+        touchall();
         return;
 
     case OPparam:
@@ -368,7 +372,7 @@ STATIC void ecom(elem **pe)
     case OPstrctor: case OPu16_d: case OPd_u16:
     case OParrow:
     case OPvoid: case OPnullcheck:
-    case OPbsf: case OPbsr: case OPbswap: case OPvector:
+    case OPbsf: case OPbsr: case OPbswap: case OPpopcnt: case OPvector:
     case OPld_u64:
 #if TX86
     case OPsqrt: case OPsin: case OPcos:
@@ -499,7 +503,7 @@ STATIC void addhcstab(elem *e,int hash)
   hcstab[h].Hhash = hash;
   hcsarray.top++;
 }
-
+
 /***************************
  * "touch" the elem.
  * If it is a pointer, "touch" all the suspects
@@ -564,7 +568,7 @@ STATIC void touchlvalue(elem *e)
             assert(0);
     }
 }
-
+
 /**************************
  * "touch" variables that could be changed by a function call or
  * an indirect assignment.
@@ -658,6 +662,21 @@ STATIC void touchstar()
                 hcstab[i].Helem = NULL;
   }
   hcsarray.touchstari = hcsarray.top;
+}
+
+/*******************************
+ * Eliminate all common subexpressions.
+ */
+
+STATIC void touchall()
+{
+    for (unsigned i = 0; i < hcsarray.top; i++)
+    {
+        hcstab[i].Helem = NULL;
+    }
+    hcsarray.touchstari = hcsarray.top;
+    hcsarray.touchfunci[0] = hcsarray.top;
+    hcsarray.touchfunci[1] = hcsarray.top;
 }
 
 #if TARGET_SEGMENTED

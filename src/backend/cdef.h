@@ -435,7 +435,7 @@ typedef long double longdouble;
 #endif
 
 #define TOOFFSET(a,b)   (I32 ? TOLONG(a,b) : TOWORD(a,b))
-
+
 /***************************
  * Target machine data types as they appear on the host.
  */
@@ -622,7 +622,7 @@ Written by Walter Bright"
 #endif
 #endif
 #endif
-
+
 /**********************************
  * Configuration
  */
@@ -703,6 +703,11 @@ struct Config
                                    2:   fast inline 8087 code
                                  */
     short memmodel;             // 0:S,X,N,F, 1:M, 2:C, 3:L, 4:V
+    unsigned objfmt;            // target object format
+#define OBJ_OMF         1
+#define OBJ_MSCOFF      2
+#define OBJ_ELF         3
+#define OBJ_MACH        4
     unsigned exe;               // target operating system
 #define EX_DOSX         1       // DOSX 386 program
 #define EX_ZPM          2       // ZPM 286 program
@@ -942,6 +947,8 @@ union eve
         targ_llong      Vllong;
         targ_ullong     Vullong;
         Cent            Vcent;
+        targ_float      Vfloat4[4];
+        targ_double     Vdouble2[2];
         targ_float      Vfloat;
         targ_double     Vdouble;
         targ_ldouble    Vldouble;

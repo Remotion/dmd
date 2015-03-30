@@ -517,7 +517,7 @@ void cod3_buildmodulector(Outbuffer* buf, int codeOffset, int refOffset)
         /* movl ModuleReference*, %eax */
         buf->writeByte(0xB8);
         codeOffset += 1;
-        const unsigned reltype = I64 ? R_X86_64_32 : RI_TYPE_SYM32;
+        const unsigned reltype = I64 ? R_X86_64_32 : R_386_32;
         codeOffset += ElfObj::writerel(seg, codeOffset, reltype, 3 /*STI_DATA*/, refOffset);
 
         /* movl _Dmodule_ref, %ecx */
@@ -541,7 +541,7 @@ void cod3_buildmodulector(Outbuffer* buf, int codeOffset, int refOffset)
 
 #endif
 
-
+
 /*****************************
  * Given a type, return a mask of
  * registers to hold that type.
@@ -571,6 +571,7 @@ regm_t regmask(tym_t tym, tym_t tyf)
 #endif
         case TYnullptr:
         case TYnptr:
+        case TYnref:
 #if TARGET_SEGMENTED
         case TYsptr:
         case TYcptr:
@@ -723,7 +724,7 @@ void cgreg_set_priorities(tym_t ty, char **pseq, char **pseqmsw)
     }
 }
 
-
+
 /*******************************
  * Generate block exit code
  */
@@ -754,10 +755,14 @@ void outblkexitcode(block *bl, code*& c, int& anyspill, const char* sflsave, sym
             nextb = bs2;
             bl->Bcode = NULL;
         L2:
+            if (configv.addlinenumbers && bl->Bsrcpos.Slinnum &&
+                !(funcsym_p->ty() & mTYnaked))
+            {
+                //printf("BCiftrue: %s(%u)\n", bl->Bsrcpos.Sfilename ? bl->Bsrcpos.Sfilename : "", bl->Bsrcpos.Slinnum);
+                cgen_linnum(&c,bl->Bsrcpos);
+            }
             if (nextb != bl->Bnext)
-            {   if (configv.addlinenumbers && bl->Bsrcpos.Slinnum &&
-                    !(funcsym_p->ty() & mTYnaked))
-                    cgen_linnum(&c,bl->Bsrcpos);
+            {
                 assert(!(bl->Bflags & BFLepilog));
                 c = cat(c,genjmp(CNIL,JMP,FLblock,nextb));
             }
@@ -792,8 +797,8 @@ void outblkexitcode(block *bl, code*& c, int& anyspill, const char* sflsave, sym
 #endif
         case BCgoto:
             nextb = list_block(bl->Bsucc);
-            if ((funcsym_p->Sfunc->Fflags3 & Fnteh ||
-                 (MARS /*&& config.flags2 & CFG2seh*/)) &&
+            if (((MARS /*&& config.flags2 & CFG2seh*/) ||
+                 funcsym_p->Sfunc->Fflags3 & Fnteh) &&
                 bl->Btry != nextb->Btry &&
                 nextb->BC != BC_finally)
             {   int toindex;
@@ -1363,7 +1368,7 @@ void doswitch(block *b)
         if (I32 && config.flags3 & CFG3pic)
             retregs &= ~mBX;                            // need EBX for GOT
 #endif
-        bool modify = (vmin || I16 || I64);
+        bool modify = (I16 || I64 || vmin);
         c = scodelem(e,&retregs,0,!modify);
         unsigned reg = findreg(retregs & IDXREGS); // reg that result is in
         unsigned reg2;
@@ -1415,6 +1420,8 @@ void doswitch(block *b)
                 gen2sib(ce,0x63,(REX_W << 16) | modregxrm(0,r2,4), modregxrmx(2,reg,r1)); // MOVSXD R2,[reg*4][R1]
                 gen2sib(ce,LEA,(REX_W << 16) | modregxrm(0,r1,4),modregxrmx(0,r1,r2));    // LEA R1,[R1][R2]
                 gen2(ce,0xFF,modregrmx(3,4,r1));                                          // JMP R1
+
+                pinholeopt(ce, NULL);
 
                 b->Btablesize = (int) (vmax - vmin + 1) * 4;
             }
@@ -1824,7 +1831,7 @@ void outswitab(block *b)
   }
   assert(*poffset == offset + ncases * tysize[TYnptr]);
 }
-
+
 /*****************************
  * Return a jump opcode relevant to the elem for a JMP TRUE.
  */
@@ -1862,19 +1869,23 @@ int jmpopcode(elem *e)
         e = e->E2;                      /* right operand determines it  */
 
   op = e->Eoper;
+  tym_t tymx = tybasic(e->Ety);
+  bool needsNanCheck = tyfloating(tymx) && config.inline8087 &&
+    (tymx == TYldouble || tymx == TYildouble || tymx == TYcldouble ||
+     tymx == TYcdouble || tymx == TYcfloat ||
+     op == OPind ||
+     (OTcall(op) && (regmask(tymx, tybasic(e->E1->Eoper)) & (mST0 | XMMREGS))));
   if (e->Ecount != e->Ecomsub)          // comsubs just get Z bit set
-        return JNE;
+  {
+        if (needsNanCheck) // except for floating point values that need a NaN check
+            return XP|JNE;
+        else
+            return JNE;
+  }
   if (!OTrel(op))                       // not relational operator
   {
-        tym_t tymx = tybasic(e->Ety);
-        if (tyfloating(tymx) && config.inline8087 &&
-            (tymx == TYldouble || tymx == TYildouble || tymx == TYcldouble ||
-             tymx == TYcdouble || tymx == TYcfloat ||
-             op == OPind ||
-             (OTcall(op) && (regmask(tymx, tybasic(e->E1->Eoper)) & (mST0 | XMMREGS)))))
-        {
+        if (needsNanCheck)
             return XP|JNE;
-        }
         return ((op >= OPbt && op <= OPbts) || op == OPbtst) ? JC : JNE;
   }
 
@@ -1960,7 +1971,7 @@ L1:
   assert((jp & 0xF0) == 0x70);
   return jp;
 }
-
+
 /**********************************
  * Append code to *pc which validates pointer described by
  * addressing mode in *pcs. Modify addressing mode in *pcs.
@@ -2213,6 +2224,8 @@ code* gen_testcse(code *c, unsigned sz, targ_uns i)
                 FLcs,i, FLconst,(targ_uns) 0);
     if ((I64 || I32) && sz == 2)
         c->Iflags |= CFopsize;
+    if (I64 && sz == 8)
+        code_orrex(c, REX_W);
     return c;
 }
 
@@ -3214,10 +3227,10 @@ code* prolog_genvarargs(symbol* sv, regm_t* namedargs)
         MOV     voff+5*8[RBP],R9
         MOVZX   EAX,AL                      // AL = 0..8, # of XMM registers used
         SHL     EAX,2                       // 4 bytes for each MOVAPS
-        LEA     RDX,offset L2[RIP]
-        SUB     RDX,RAX
+        LEA     R11,offset L2[RIP]
+        SUB     R11,RAX
         LEA     RAX,voff+6*8+0x7F[RBP]
-        JMP     EDX
+        JMP     R11d
         MOVAPS  -0x0F[RAX],XMM7             // only save XMM registers if actually used
         MOVAPS  -0x1F[RAX],XMM6
         MOVAPS  -0x2F[RAX],XMM5
@@ -3229,10 +3242,11 @@ code* prolog_genvarargs(symbol* sv, regm_t* namedargs)
       L2:
         MOV     1[RAX],offset_regs          // set __va_argsave.offset_regs
         MOV     5[RAX],offset_fpregs        // set __va_argsave.offset_fpregs
-        LEA     RDX, Para.size+Para.offset[RBP]
-        MOV     9[RAX],RDX                  // set __va_argsave.stack_args
+        LEA     R11, Para.size+Para.offset[RBP]
+        MOV     9[RAX],R11                  // set __va_argsave.stack_args
         SUB     RAX,6*8+0x7F                // point to start of __va_argsave
         MOV     6*8+8*16+4+4+8[RAX],RAX     // set __va_argsave.reg_args
+        MOV     RDX,R11
     */
     targ_size_t voff = Auto.size + BPoff + sv->Soffset;  // EBP offset of start of sv
     const int vregnum = 6;
@@ -3257,12 +3271,12 @@ code* prolog_genvarargs(symbol* sv, regm_t* namedargs)
     c = genregs(c,0x0FB6,AX,AX);                          // MOVZX EAX,AL
     genc2(c,0xC1,modregrm(3,4,AX),2);                      // SHL EAX,2
     int raxoff = voff+6*8+0x7F;
-    unsigned L2offset = (raxoff < -0x7F) ? 0x2C : 0x29;
+    unsigned L2offset = (raxoff < -0x7F) ? 0x2D : 0x2A;
     if (!hasframe)
         L2offset += 1;                                      // +1 for sib byte
-    // LEA RDX,offset L2[RIP]
-    genc1(c,LEA,(REX_W << 16) | modregrm(0,DX,5),FLconst,L2offset);
-    genregs(c,0x29,AX,DX);                                 // SUB RDX,RAX
+    // LEA R11,offset L2[RIP]
+    genc1(c,LEA,(REX_W << 16) | modregxrm(0,R11,5),FLconst,L2offset);
+    genregs(c,0x29,AX,R11);                                // SUB R11,RAX
     code_orrex(c, REX_W);
     // LEA RAX,voff+vsize-6*8-16+0x7F[RBP]
     unsigned ea = (REX_W << 16) | modregrm(2,AX,BPRM);
@@ -3270,7 +3284,7 @@ code* prolog_genvarargs(symbol* sv, regm_t* namedargs)
         // add sib byte for [RSP] addressing
         ea = (REX_W << 16) | (modregrm(0,4,SP) << 8) | modregxrm(2,AX,4);
     genc1(c,LEA,ea,FLconst,raxoff);
-    gen2(c,0xFF,modregrm(3,4,DX));                         // JMP EDX
+    gen2(c,0xFF,modregrmx(3,4,R11));                       // JMP R11d
     for (int i = 0; i < 8; i++)
     {
         // MOVAPS -15-16*i[RAX],XMM7-i
@@ -3300,15 +3314,15 @@ code* prolog_genvarargs(symbol* sv, regm_t* namedargs)
     // MOV 5[RAX],offset_fpregs
     genc(c,0xC7,modregrm(2,0,AX),FLconst,5,FLconst,offset_fpregs);
 
-    // LEA RDX, Para.size+Para.offset[RBP]
-    ea = modregrm(2,DX,BPRM);
+    // LEA R11, Para.size+Para.offset[RBP]
+    ea = modregxrm(2,R11,BPRM);
     if (!hasframe)
         ea = (modregrm(0,4,SP) << 8) | modregrm(2,DX,4);
     Para.offset = (Para.offset + (REGSIZE - 1)) & ~(REGSIZE - 1);
     genc1(c,LEA,(REX_W << 16) | ea,FLconst,Para.size + Para.offset);
 
-    // MOV 9[RAX],RDX
-    genc1(c,0x89,(REX_W << 16) | modregrm(2,DX,AX),FLconst,9);
+    // MOV 9[RAX],R11
+    genc1(c,0x89,(REX_W << 16) | modregxrm(2,R11,AX),FLconst,9);
 
     // SUB RAX,6*8+0x7F             // point to start of __va_argsave
     genc2(c,0x2D,0,6*8+0x7F);
@@ -3318,7 +3332,7 @@ code* prolog_genvarargs(symbol* sv, regm_t* namedargs)
     genc1(c,0x89,(REX_W << 16) | modregrm(2,AX,AX),FLconst,6*8+8*16+4+4+8);
 
     pinholeopt(c, NULL);
-    useregs(mDX|mAX);
+    useregs(mAX|mR11);
 
     return c;
 }
@@ -4056,7 +4070,7 @@ void cod3_thunk(symbol *sthunk,symbol *sfunc,unsigned p,tym_t thisty,
         if (config.wflags & WFssneds ||
             // If DS needs reloading from SS,
             // then assume SS != DS on thunk entry
-            (config.wflags & WFss && LARGEDATA))
+            (LARGEDATA && config.wflags & WFss))
             c1->Iflags |= CFss;                         /* SS:          */
         c = cat(c,c1);
     }
@@ -4108,7 +4122,7 @@ void cod3_thunk(symbol *sthunk,symbol *sfunc,unsigned p,tym_t thisty,
             if (config.wflags & WFssneds ||
                 // If DS needs reloading from SS,
                 // then assume SS != DS on thunk entry
-                (config.wflags & WFss && LARGEDATA))
+                (LARGEDATA && config.wflags & WFss))
                 c1->Iflags |= CFss;                     /* SS:          */
 
             /* MOV/LES BX,[ES:]d2[BX] */
@@ -4150,7 +4164,7 @@ void cod3_thunk(symbol *sthunk,symbol *sfunc,unsigned p,tym_t thisty,
     objmod->pubdef(cseg,sthunk,sthunk->Soffset);
 #endif
 #if TARGET_WINDOS
-    if (config.exe == EX_WIN64)
+    if (config.objfmt == OBJ_MSCOFF)
         objmod->pubdef(cseg,sthunk,sthunk->Soffset);
 #endif
     searchfixlist(sthunk);              /* resolve forward refs */
@@ -4529,7 +4543,7 @@ void assignaddrc(code *c)
         {
 #if OMFOBJ
             case FLdata:
-                if (I64 || s->Sclass == SCcomdat)
+                if (config.objfmt == OBJ_MSCOFF || s->Sclass == SCcomdat)
                 {   c->IFL1 = FLextern;
                     goto do2;
                 }
@@ -4543,7 +4557,7 @@ void assignaddrc(code *c)
                 goto do2;
 
             case FLudata:
-                if (I64)
+                if (config.objfmt == OBJ_MSCOFF)
                 {   c->IFL1 = FLextern;
                     goto do2;
                 }
@@ -4772,7 +4786,7 @@ void assignaddrc(code *c)
         ;
     }
 }
-
+
 /*******************************
  * Return offset from BP of symbol s.
  */
@@ -4804,7 +4818,7 @@ targ_size_t cod3_bpoffset(symbol *s)
     return offset;
 }
 
-
+
 /*******************************
  * Find shorter versions of the same instructions.
  * Does these optimizations:
@@ -5237,7 +5251,8 @@ void pinholeopt(code *c,block *b)
             }
 
             // Replace [R13] with 0[R13]
-            if (c->Irex & REX_B && (c->Irm & modregrm(3,0,5)) == modregrm(0,0,5))
+            if (c->Irex & REX_B && ((c->Irm & modregrm(3,0,7)) == modregrm(0,0,BP) ||
+                                    issib(c->Irm) && (c->Irm & modregrm(3,0,0)) == 0 && (c->Isib & 7) == BP))
             {
                 c->Irm |= modregrm(1,0,0);
                 c->IFL1 = FLconst;
@@ -5384,7 +5399,7 @@ void simplify_code(code* c)
         (c->Iop == 0x81 || c->Iop == 0x80) &&
         c->IFL2 == FLconst &&
         reghasvalue((c->Iop == 0x80) ? BYTEREGS : ALLREGS,I64 ? c->IEV2.Vsize_t : c->IEV2.Vlong,&reg) &&
-        !(c->Iflags & CFopsize && I16)
+        !(I16 && c->Iflags & CFopsize)
        )
     {
         // See if we can replace immediate instruction with register instruction
@@ -5469,7 +5484,7 @@ void jmpaddr(code *c)
         c = code_next(c);
   }
 }
-
+
 /*******************************
  * Calculate bl->Bsize.
  */
@@ -5777,7 +5792,7 @@ nomatch:
 }
 
 #endif
-
+
 /**************************
  * Write code to intermediate file.
  * Code starts at offset.
@@ -6941,7 +6956,7 @@ void code_dehydrate(code **pc)
     }
 }
 #endif
-
+
 /***************************
  * Debug code to dump code stucture.
  */
@@ -7110,4 +7125,3 @@ void code::print()
 #endif
 
 #endif // !SPP
-

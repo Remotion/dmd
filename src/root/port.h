@@ -42,6 +42,9 @@ struct Port
     static double dbl_min;
     static longdouble ldbl_max;
 
+    static bool yl2x_supported;
+    static bool yl2xp1_supported;
+
     static int isNan(double);
     static int isNan(longdouble);
 
@@ -54,6 +57,9 @@ struct Port
     static longdouble sqrt(longdouble x);
     static int fequal(longdouble x, longdouble y);
 
+    static void yl2x_impl(longdouble* x, longdouble* y, longdouble* res);
+    static void yl2xp1_impl(longdouble* x, longdouble* y, longdouble* res);
+
     static char *strupr(char *);
 
     static int memicmp(const char *s1, const char *s2, int n);
@@ -62,6 +68,13 @@ struct Port
     static float strtof(const char *p, char **endp);
     static double strtod(const char *p, char **endp);
     static longdouble strtold(const char *p, char **endp);
+
+    static void writelongLE(unsigned value, void* buffer);
+    static unsigned readlongLE(void* buffer);
+    static void writelongBE(unsigned value, void* buffer);
+    static unsigned readlongBE(void* buffer);
+    static unsigned readwordLE(void* buffer);
+    static unsigned readwordBE(void* buffer);
 };
 
 #endif

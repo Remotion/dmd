@@ -196,7 +196,7 @@
 				FavorSizeOrSpeed="1"
 				OmitFramePointers="true"
 				AdditionalIncludeDirectories=".\root;.\tk;.\backend;.;vcbuild"
-				PreprocessorDefinitions="NDEBUG;TARGET_WINDOS=1"
+				PreprocessorDefinitions="TARGET_WINDOS=1"
 				RuntimeLibrary="0"
 				StructMemberAlignment="1"
 				BufferSecurityCheck="false"
@@ -394,11 +394,15 @@
 				>
 			</File>
 			<File
-				RelativePath=".\color.c"
+				RelativePath=".\errors.c"
 				>
 			</File>
 			<File
-				RelativePath=".\color.h"
+				RelativePath=".\errors.h"
+				>
+			</File>
+			<File
+				RelativePath=".\escape.c"
 				>
 			</File>
 			<File
@@ -483,6 +487,14 @@
 			</File>
 			<File
 				RelativePath=".\func.c"
+				>
+			</File>
+			<File
+				RelativePath=".\globals.c"
+				>
+			</File>
+			<File
+				RelativePath=".\globals.h"
 				>
 			</File>
 			<File
@@ -787,6 +799,14 @@
 			</File>
 			<File
 				RelativePath=".\toir.h"
+				>
+			</File>
+			<File
+				RelativePath=".\tokens.c"
+				>
+			</File>
+			<File
+				RelativePath=".\tokens.h"
 				>
 			</File>
 			<File
@@ -1373,6 +1393,14 @@
 					>
 				</File>
 				<File
+					RelativePath=".\root\checkedint.c"
+					>
+				</File>
+				<File
+					RelativePath=".\root\checkedint.h"
+					>
+				</File>
+				<File
 					RelativePath=".\root\file.c"
 					>
 				</File>
@@ -1461,7 +1489,7 @@
 				Name="gen"
 				>
 				<File
-					RelativePath=".\idgen.c"
+					RelativePath=".\idgen.d"
 					>
 					<FileConfiguration
 						Name="Debug|Win32"
@@ -1469,8 +1497,8 @@
 						<Tool
 							Name="VCCustomBuildTool"
 							Description="Building and running $(IntDir)\$(InputName).exe"
-							CommandLine="cl /TP /Fo$(IntDir)\$(InputName).obj /Fe$(IntDir)\$(InputName).exe $(InputFileName)&#x0D;&#x0A;if errorlevel 1 goto VCReportError&#x0D;&#x0A;$(IntDir)\$(InputName).exe&#x0D;&#x0A;"
-							AdditionalDependencies="idgen.c"
+							CommandLine="dmd -od$(IntDir) -of$(IntDir)\$(InputName).exe $(InputFileName)&#x0D;&#x0A;if errorlevel 1 goto VCReportError&#x0D;&#x0A;$(IntDir)\$(InputName).exe&#x0D;&#x0A;"
+							AdditionalDependencies="idgen.d"
 							Outputs="id.c;id.h;$(IntDir)\$(InputName).exe"
 						/>
 					</FileConfiguration>
@@ -1480,8 +1508,8 @@
 						<Tool
 							Name="VCCustomBuildTool"
 							Description="Building and running $(IntDir)\$(InputName).exe"
-							CommandLine="cl /TP /Fo$(IntDir)\$(InputName).obj /Fe$(IntDir)\$(InputName).exe $(InputFileName)&#x0D;&#x0A;if errorlevel 1 goto VCReportError&#x0D;&#x0A;$(IntDir)\$(InputName).exe&#x0D;&#x0A;"
-							AdditionalDependencies="idgen.c"
+							CommandLine="dmd -od$(IntDir) -of$(IntDir)\$(InputName).exe $(InputFileName)&#x0D;&#x0A;if errorlevel 1 goto VCReportError&#x0D;&#x0A;$(IntDir)\$(InputName).exe&#x0D;&#x0A;"
+							AdditionalDependencies="idgen.d"
 							Outputs="id.c;id.h;$(IntDir)\$(InputName).exe"
 						/>
 					</FileConfiguration>
@@ -1491,8 +1519,8 @@
 						<Tool
 							Name="VCCustomBuildTool"
 							Description="Building and running $(IntDir)\$(InputName).exe"
-							CommandLine="cl /TP /Fo$(IntDir)\$(InputName).obj /Fe$(IntDir)\$(InputName).exe $(InputFileName)&#x0D;&#x0A;if errorlevel 1 goto VCReportError&#x0D;&#x0A;$(IntDir)\$(InputName).exe&#x0D;&#x0A;"
-							AdditionalDependencies="idgen.c"
+							CommandLine="dmd -od$(IntDir) -of$(IntDir)\$(InputName).exe $(InputFileName)&#x0D;&#x0A;if errorlevel 1 goto VCReportError&#x0D;&#x0A;$(IntDir)\$(InputName).exe&#x0D;&#x0A;"
+							AdditionalDependencies="idgen.d"
 							Outputs="id.c;id.h;$(IntDir)\$(InputName).exe"
 						/>
 					</FileConfiguration>
@@ -1502,8 +1530,8 @@
 						<Tool
 							Name="VCCustomBuildTool"
 							Description="Building and running $(IntDir)\$(InputName).exe"
-							CommandLine="cl /TP /Fo$(IntDir)\$(InputName).obj /Fe$(IntDir)\$(InputName).exe $(InputFileName)&#x0D;&#x0A;if errorlevel 1 goto VCReportError&#x0D;&#x0A;$(IntDir)\$(InputName).exe&#x0D;&#x0A;"
-							AdditionalDependencies="idgen.c"
+							CommandLine="dmd -od$(IntDir) -of$(IntDir)\$(InputName).exe $(InputFileName)&#x0D;&#x0A;if errorlevel 1 goto VCReportError&#x0D;&#x0A;$(IntDir)\$(InputName).exe&#x0D;&#x0A;"
+							AdditionalDependencies="idgen.d"
 							Outputs="id.c;id.h;$(IntDir)\$(InputName).exe"
 						/>
 					</FileConfiguration>

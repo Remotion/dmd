@@ -144,7 +144,7 @@ int findNoMainError(int fd)
 int runLINK()
 {
 #if _WIN32
-    if (global.params.is64bit)
+    if (global.params.mscoff)
     {
         OutBuffer cmdbuf;
 
@@ -250,16 +250,22 @@ int runLINK()
          */
         const char *vcinstalldir = getenv("VCINSTALLDIR");
         if (vcinstalldir)
-        {   cmdbuf.writestring(" \"/LIBPATH:");
+        {   cmdbuf.writestring(" /LIBPATH:\"");
             cmdbuf.writestring(vcinstalldir);
-            cmdbuf.writestring("lib\\amd64\"");
+            if(global.params.is64bit)
+                cmdbuf.writestring("\\lib\\amd64\"");
+            else
+                cmdbuf.writestring("\\lib\"");
         }
 
         const char *windowssdkdir = getenv("WindowsSdkDir");
         if (windowssdkdir)
-        {   cmdbuf.writestring(" \"/LIBPATH:");
+        {   cmdbuf.writestring(" /LIBPATH:\"");
             cmdbuf.writestring(windowssdkdir);
-            cmdbuf.writestring("lib\\x64\"");
+            if(global.params.is64bit)
+                cmdbuf.writestring("\\lib\\x64\"");
+            else
+                cmdbuf.writestring("\\lib\"");
         }
 
         char *p = cmdbuf.peekString();
@@ -278,7 +284,7 @@ int runLINK()
                 sprintf(p, "@%s", lnkfilename);
         }
 
-        const char *linkcmd = getenv("LINKCMD64");
+        const char *linkcmd = getenv(global.params.is64bit ? "LINKCMD64" : "LINKCMD");
         if (!linkcmd)
             linkcmd = getenv("LINKCMD"); // backward compatible
         if (!linkcmd)
@@ -287,7 +293,10 @@ int runLINK()
             {
                 OutBuffer linkcmdbuf;
                 linkcmdbuf.writestring(vcinstalldir);
-                linkcmdbuf.writestring("bin\\amd64\\link");
+                if(global.params.is64bit)
+                    linkcmdbuf.writestring("\\bin\\amd64\\link");
+                else
+                    linkcmdbuf.writestring("\\bin\\link");
                 linkcmd = linkcmdbuf.extractString();
             }
             else
@@ -480,7 +489,7 @@ int runLINK()
         }
         else
             close(fd);
-        global.params.exefile = mem.strdup(name);
+        global.params.exefile = mem.xstrdup(name);
         argv.push(global.params.exefile);
 #else
         /* The use of tmpnam raises the issue of "is this a security hole"?
@@ -493,7 +502,7 @@ int runLINK()
          */
         char s[L_tmpnam + 1];
         char *n = tmpnam(s);
-        global.params.exefile = mem.strdup(n);
+        global.params.exefile = mem.xstrdup(n);
         argv.push(global.params.exefile);
 #endif
     }
@@ -507,7 +516,7 @@ int runLINK()
         if (e)
         {
             e--;                        // back up over '.'
-            ex = (char *)mem.malloc(e - n + 1);
+            ex = (char *)mem.xmalloc(e - n + 1);
             memcpy(ex, n, e - n);
             ex[e - n] = 0;
             // If generating dll then force dll extension
@@ -575,10 +584,12 @@ int runLINK()
     for (size_t i = 0; i < global.params.linkswitches->dim; i++)
     {   const char *p = (*global.params.linkswitches)[i];
         if (!p || !p[0] || !(p[0] == '-' && (p[1] == 'l' || p[1] == 'L')))
+        {
             // Don't need -Xlinker if switch starts with -l or -L.
             // Eliding -Xlinker is significant for -L since it allows our paths
             // to take precedence over gcc defaults.
             argv.push("-Xlinker");
+        }
         argv.push(p);
     }
 
@@ -597,7 +608,7 @@ int runLINK()
             argv.push(p);
         else
         {
-            char *s = (char *)mem.malloc(plen + 3);
+            char *s = (char *)mem.xmalloc(plen + 3);
             s[0] = '-';
             s[1] = 'l';
             memcpy(s + 2, p, plen + 1);
@@ -659,7 +670,7 @@ int runLINK()
 
     if (pipe(fds) == -1)
     {
-        perror("Unable to create pipe to linker");
+        perror("unable to create pipe to linker");
         return -1;
     }
 
@@ -676,7 +687,7 @@ int runLINK()
     }
     else if (childpid == -1)
     {
-        perror("Unable to fork");
+        perror("unable to fork");
         return -1;
     }
     close(fds[1]);
@@ -690,7 +701,7 @@ int runLINK()
         {
             if (nme == -1)
             {
-                perror("Error with the linker pipe");
+                perror("error with the linker pipe");
                 return -1;
             }
             else
@@ -740,7 +751,7 @@ int executecmd(const char *cmd, const char *args)
     if (global.params.verbose)
         fprintf(global.stdmsg, "%s %s\n", cmd, args);
 
-    if (!global.params.is64bit)
+    if (!global.params.mscoff)
     {
         if ((len = strlen(args)) > 255)
         {
@@ -775,8 +786,10 @@ int executecmd(const char *cmd, const char *args)
 
     status = executearg0(cmd,args);
     if (status == -1)
+    {
         // spawnlp returns intptr_t in some systems, not int
         status = spawnlp(0,cmd,cmd,args,NULL);
+    }
 
 //    if (global.params.verbose)
 //      fprintf(global.stdmsg, "\n");
@@ -845,7 +858,7 @@ int runProgram()
 #if _WIN32
         // BUG: what about " appearing in the string?
         if (strchr(a, ' '))
-        {   char *b = (char *)mem.malloc(3 + strlen(a));
+        {   char *b = (char *)mem.xmalloc(3 + strlen(a));
             sprintf(b, "\"%s\"", a);
             a = b;
         }

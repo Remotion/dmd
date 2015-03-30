@@ -4,9 +4,9 @@
 # All Rights Reserved
 # written by Walter Bright
 # http://www.digitalmars.com
-# License for redistribution is by either the Artistic License
-# in artistic.txt, or the GNU General Public License in gnu.txt.
-# See the included readme.txt for details.
+# Distributed under the Boost Software License, Version 1.0.
+# http://www.boost.org/LICENSE_1_0.txt
+# https://github.com/D-Programming-Language/dmd/blob/master/src/win32.mak
 #
 # Dependencies:
 #
@@ -77,6 +77,8 @@ SCPDIR=..\backup
 
 # C++ compiler
 CC=dmc
+# D compiler (set with env variable)
+#HOST_DC=dmd
 # Make program
 MAKE=make
 # Librarian
@@ -121,9 +123,9 @@ BFLAGS=
 # Compile flags
 CFLAGS=-I$(INCLUDE) $(OPT) $(CFLAGS) $(DEBUG) -cpp -DTARGET_WINDOS=1 -DDM_TARGET_CPU_X86=1
 # Compile flags for modules with backend/toolkit dependencies
-MFLAGS=-I$C;$(TK) $(OPT) -DMARS -cpp $(DEBUG) -e -wx -DTARGET_WINDOS=1 -DDM_TARGET_CPU_X86=1
+MFLAGS=-I$C;$(TK) $(OPT) -DMARS -cpp $(DEBUG) -e -wx -DTARGET_WINDOS=1 -DDM_TARGET_CPU_X86=1 -DDMDV2=1
 # Recursive make
-DMDMAKE=$(MAKE) -fwin32.mak C=$C TK=$(TK) ROOT=$(ROOT)
+DMDMAKE=$(MAKE) -fwin32.mak C=$C TK=$(TK) ROOT=$(ROOT) HOST_DC="$(HOST_DC)"
 
 ############################### Rule Variables ###############################
 
@@ -141,7 +143,7 @@ FRONTOBJ= enum.obj struct.obj dsymbol.obj import.obj id.obj \
 	builtin.obj clone.obj arrayop.obj \
 	json.obj unittests.obj imphint.obj argtypes.obj apply.obj sapply.obj \
 	sideeffect.obj intrange.obj canthrow.obj target.obj nspace.obj \
-	color.obj
+	errors.obj escape.obj tokens.obj globals.obj
 
 # Glue layer
 GLUEOBJ=glue.obj msc.obj s2ir.obj todt.obj e2ir.obj tocsym.obj \
@@ -168,13 +170,13 @@ BACKOBJ= go.obj gdag.obj gother.obj gflow.obj gloop.obj var.obj el.obj \
 GCOBJS=rmem.obj
 # Removed garbage collector (look in history)
 #GCOBJS=dmgcmem.obj bits.obj win32.obj gc.obj
-ROOTOBJS= man.obj port.obj \
+ROOTOBJS= man.obj port.obj checkedint.obj \
 	stringtable.obj response.obj async.obj speller.obj aav.obj outbuffer.obj \
 	object.obj filename.obj file.obj \
 	$(GCOBJS)
 
 # D front end
-SRCS= mars.c enum.c struct.c dsymbol.c import.c idgen.c impcnvgen.c utf.h \
+SRCS= mars.c enum.c struct.c dsymbol.c import.c idgen.d impcnvgen.c utf.h \
 	utf.c entity.c identifier.c mtype.c expression.c optimize.c \
 	template.h template.c lexer.c declaration.c cast.c \
 	cond.h cond.c link.c aggregate.h staticassert.h parse.c statement.c \
@@ -186,10 +188,11 @@ SRCS= mars.c enum.c struct.c dsymbol.c import.c idgen.c impcnvgen.c utf.h \
 	declaration.h lexer.h expression.h statement.h doc.h doc.c \
 	macro.h macro.c hdrgen.h hdrgen.c arraytypes.h \
 	delegatize.c interpret.c ctfeexpr.c traits.c builtin.c \
-	clone.c lib.h arrayop.c nspace.h nspace.c color.h color.c \
+	clone.c lib.h arrayop.c nspace.h nspace.c errors.h errors.c escape.c \
 	aliasthis.h aliasthis.c json.h json.c unittests.c imphint.c argtypes.c \
 	apply.c sapply.c sideeffect.c ctfe.h \
-	intrange.h intrange.c canthrow.c target.c target.h visitor.h
+	intrange.h intrange.c canthrow.c target.c target.h visitor.h \
+	tokens.h tokens.c globals.h globals.c
 
 # Glue layer
 GLUESRC= glue.c msc.c s2ir.c todt.c e2ir.c tocsym.c \
@@ -229,11 +232,13 @@ TKSRC= $(TK)\filespec.h $(TK)\mem.h $(TK)\list.h $(TK)\vec.h $(TKSRCC)
 ROOTSRCC=$(ROOT)\rmem.c $(ROOT)\stringtable.c \
 	$(ROOT)\man.c $(ROOT)\port.c $(ROOT)\async.c $(ROOT)\response.c \
 	$(ROOT)\speller.c $(ROOT)\aav.c $(ROOT)\longdouble.c \
+	$(ROOT)\checkedint.c \
 	$(ROOT)\outbuffer.c $(ROOT)\object.c $(ROOT)\filename.c $(ROOT)\file.c
 ROOTSRC= $(ROOT)\root.h \
 	$(ROOT)\rmem.h $(ROOT)\port.h \
 	$(ROOT)\stringtable.h \
 	$(ROOT)\async.h \
+	$(ROOT)\checkedint.h \
 	$(ROOT)\speller.h \
 	$(ROOT)\aav.h \
 	$(ROOT)\longdouble.h \
@@ -255,9 +260,6 @@ CH= $C\cc.h $C\global.h $C\oper.h $C\code.h $C\code_x86.h $C\type.h $C\dt.h $C\c
 
 # Makefiles
 MAKEFILES=win32.mak posix.mak osmodel.mak
-
-# Unit tests
-TESTS=UTFTest.exe # LexerTest.exe
 
 ############################## Release Targets ###############################
 
@@ -323,9 +325,8 @@ install-copy:
 	$(CP) $(TKSRC)              $(INSTALL)\src\dmd\tk
 	$(CP) $(BACKSRC)            $(INSTALL)\src\dmd\backend
 	$(CP) $(MAKEFILES)          $(INSTALL)\src\dmd
-	$(CP) gpl.txt               $(INSTALL)\src\dmd\gpl.txt
 	$(CP) readme.txt            $(INSTALL)\src\dmd\readme.txt
-	$(CP) artistic.txt          $(INSTALL)\src\dmd\artistic.txt
+	$(CP) boostlicense.txt      $(INSTALL)\src\dmd\boostlicense.txt
 	$(CP) backendlicense.txt    $(INSTALL)\src\dmd\backendlicense.txt
 
 install-clean:
@@ -365,21 +366,22 @@ pvs:
 #	$(PVS) --cfg PVS-Studio.cfg --cl-params /I$C;$(TK) /Tp $(BACKSRC) --source-file $(BACKSRC)
 #	$(PVS) --cfg PVS-Studio.cfg --cl-params /I$(TK) /Tp $(TKSRCC) --source-file $(TKSRCC)
 
+checkwhitespace:
+	$(HOST_DC) -run checkwhitespace $(SRCS) $(GLUESRC) $(ROOTSRC)
 
 ############################## Generated Source ##############################
 
 elxxx.c cdxxx.c optab.c debtab.c fltables.c tytab.c : \
 	$C\cdef.h $C\cc.h $C\oper.h $C\ty.h $C\optabgen.c
 	$(CC) -cpp -ooptabgen.exe $C\optabgen -DMARS -DDM_TARGET_CPU_X86=1 -I$(TK)
-	optabgen
+	.\optabgen.exe
 
 impcnvtab.c : impcnvgen.c
 	$(CC) -I$(ROOT) -cpp -DDM_TARGET_CPU_X86=1 impcnvgen
-	impcnvgen
+	.\impcnvgen.exe
 
-id.h id.c : idgen.c
-	$(CC) -cpp -DDM_TARGET_CPU_X86=1 idgen
-	idgen
+id.h id.c : idgen.d
+	$(HOST_DC) -run idgen
 
 verstr.h : ..\VERSION
 	echo "$(..\VERSION)" >verstr.h
@@ -622,6 +624,9 @@ aav.obj : $(ROOT)\aav.h $(ROOT)\aav.c
 async.obj : $(ROOT)\async.h $(ROOT)\async.c
 	$(CC) -c $(CFLAGS) $(ROOT)\async.c
 
+checkedint.obj : $(ROOT)\checkedint.h $(ROOT)\checkedint.c
+	$(CC) -c $(CFLAGS) $(ROOT)\checkedint.c
+
 dmgcmem.obj : $(ROOT)\dmgcmem.c
 	$(CC) -c $(CFLAGS) $(ROOT)\dmgcmem.c
 
@@ -681,7 +686,6 @@ canthrow.obj : $(TOTALH) canthrow.c
 cast.obj : $(TOTALH) expression.h mtype.h cast.c
 class.obj : $(TOTALH) enum.h class.c
 clone.obj : $(TOTALH) clone.c
-color.obj : $(TOTALH) color.h color.c
 constfold.obj : $(TOTALH) expression.h constfold.c
 cond.obj : $(TOTALH) identifier.h declaration.h cond.h cond.c
 cppmangle.obj : $(TOTALH) mtype.h declaration.h mars.h
@@ -689,8 +693,11 @@ declaration.obj : $(TOTALH) identifier.h attrib.h declaration.h declaration.c ex
 delegatize.obj : $(TOTALH) delegatize.c
 doc.obj : $(TOTALH) doc.h doc.c
 enum.obj : $(TOTALH) dsymbol.h identifier.h enum.h enum.c
+errors.obj : $(TOTALH) errors.h errors.c
+escape.obj : $(TOTALH) escape.c
 expression.obj : $(TOTALH) expression.h expression.c
 func.obj : $(TOTALH) identifier.h attrib.h declaration.h func.c
+globals.obj : $(TOTALH) globals.h globals.c
 hdrgen.obj : $(TOTALH) hdrgen.h hdrgen.c
 id.obj : $(TOTALH) id.h id.c
 identifier.obj : $(TOTALH) identifier.h identifier.c
@@ -720,6 +727,7 @@ statement.obj : $(TOTALH) statement.h statement.c expression.h
 staticassert.obj : $(TOTALH) staticassert.h staticassert.c
 struct.obj : $(TOTALH) identifier.h enum.h struct.c
 target.obj : $(TOTALH) target.c target.h
+tokens.obj : $(TOTALH) tokens.h tokens.c
 traits.obj : $(TOTALH) traits.c
 dsymbol.obj : $(TOTALH) identifier.h dsymbol.h dsymbol.c
 mtype.obj : $(TOTALH) mtype.h mtype.c

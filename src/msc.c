@@ -37,6 +37,7 @@ struct Environment;
 void out_config_init(
         int model,      // 32: 32 bit code
                         // 64: 64 bit code
+                        // Windows: bit 0 set to generate MS-COFF instead of OMF
         bool exe,       // true: exe file
                         // false: dll or shared library (generate PIC code)
         bool trace,     // add profiling code
@@ -89,7 +90,7 @@ void backend_init()
 #endif
 
     out_config_init(
-        params->is64bit ? 64 : 32,
+        (params->is64bit ? 64 : 32) | (params->mscoff ? 1 : 0),
         exe,
         false, //params->trace,
         params->nofloat,
@@ -106,7 +107,7 @@ void backend_init()
         params->debugc,
         params->debugf,
         params->debugr,
-        params->debugw,
+        false,
         params->debugx,
         params->debugy
     );
@@ -163,6 +164,7 @@ symbol *symboldata(targ_size_t offset,tym_t ty)
     symbol *s = symbol_generate(SClocstat, type_fake(ty));
     s->Sfl = FLdata;
     s->Soffset = offset;
+    s->Stype->Tmangle = mTYman_d; // writes symbol unmodified in Obj::mangle
     symbol_keep(s);             // keep around
     return s;
 }

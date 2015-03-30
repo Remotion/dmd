@@ -73,7 +73,7 @@ void outthunk(symbol *sthunk,symbol *sfunc,unsigned p,tym_t thisty,
 }
 
 #endif
-
+
 /***************************
  * Write out statically allocated data.
  * Input:
@@ -192,7 +192,7 @@ void outdata(symbol *s)
                             objmod->lidata(pseg->SDseg, pseg->SDoffset, datasize);
 #endif
 #if OMFOBJ
-                            if (config.exe == EX_WIN64)
+                            if (config.objfmt == OBJ_MSCOFF)
                                 objmod->lidata(pseg->SDseg, pseg->SDoffset, datasize);
                             else
                                 pseg->SDoffset += datasize;
@@ -212,7 +212,7 @@ void outdata(symbol *s)
                     if (s->Sclass == SCglobal || s->Sclass == SCstatic) // if a pubdef to be done
 #endif
 #if OMFOBJ
-                    if (s->Sclass == SCglobal || (s->Sclass == SCstatic && I64)) // if a pubdef to be done
+                    if (s->Sclass == SCglobal || (s->Sclass == SCstatic && config.objfmt == OBJ_MSCOFF)) // if a pubdef to be done
 #endif
                         objmod->pubdefsize(s->Sseg,s,s->Soffset,datasize);   // do the definition
                     searchfixlist(s);
@@ -334,7 +334,7 @@ void outdata(symbol *s)
         || s->Sclass == SCstatic
 #endif
 #if OMFOBJ
-        || (s->Sclass == SCstatic && I64)
+        || (s->Sclass == SCstatic && config.objfmt == OBJ_MSCOFF)
 #endif
         )
     {
@@ -371,6 +371,10 @@ void outdata(symbol *s)
 #else
                 /*else*/ if (dt->DTseg == DATA)
                     objmod->reftodatseg(seg,offset,dt->DTabytes,DATA,flags);
+#if MARS
+                else if (dt->DTseg == CDATA)
+                    objmod->reftodatseg(seg,offset,dt->DTabytes,CDATA,flags);
+#endif
                 else
                     objmod->reftofarseg(seg,offset,dt->DTabytes,dt->DTseg,flags);
 #endif
@@ -480,7 +484,7 @@ void outcommon(symbol *s,targ_size_t n)
             objmod->common_block(s, 0, n, 1);
 #endif
 #if OMFOBJ
-            if (I64)
+            if (config.objfmt == OBJ_MSCOFF)
                 objmod->common_block(s, 0, n, 1);
             else
             {
@@ -760,7 +764,7 @@ again:
     type_free(t);
 #endif
 }
-
+
 /*************************************
  * Determine register candidates.
  */
@@ -878,7 +882,7 @@ STATIC void out_regcand_walk(elem *e)
         }
     }
 }
-
+
 /**************************
  * Optimize function,
  * generate code for it,
@@ -1434,7 +1438,7 @@ symbol *out_readonly_sym(tym_t ty, void *p, int len)
 
     symbol *s;
 
-#if ELFOBJ
+#if ELFOBJ || (OMFOBJ && MARS) /* includes COFF */
     /* MACHOBJ can't go here, because the const data segment goes into
      * the _TEXT segment, and one cannot have a fixup from _TEXT to _TEXT.
      */
@@ -1445,10 +1449,6 @@ symbol *out_readonly_sym(tym_t ty, void *p, int len)
     alignOffset(DATA, sz);
     s = symboldata(Doffset,ty | mTYconst);
     s->Sseg = DATA;
-#if TARGET_WINDOS
-    if (I64)
-        objmod->pubdef(s->Sseg, s, s->Soffset);
-#endif
     objmod->write_bytes(SegData[DATA], len, p);
     //printf("s->Sseg = %d:x%x\n", s->Sseg, s->Soffset);
 #endif

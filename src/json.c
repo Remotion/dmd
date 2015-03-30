@@ -114,8 +114,10 @@ public:
                     if (c < 0x20)
                         buf->printf("\\u%04x", c);
                     else
+                    {
                         // Note that UTF-8 chars pass through here just fine
                         buf->writeByte(c);
+                    }
                     break;
             }
         }
@@ -450,8 +452,8 @@ public:
             property("kind", s->kind());
         }
 
-        if (s->prot() != PROTpublic)
-            property("protection", protectionToChars(s->prot()));
+        if (s->prot().kind != PROTpublic)   // TODO: How about package(names)?
+            property("protection", protectionToChars(s->prot().kind));
 
         if (EnumMember *em = s->isEnumMember())
         {
@@ -556,8 +558,8 @@ public:
         property("kind", s->kind());
         property("comment", (const char *)s->comment);
         property("line", "char", &s->loc);
-        if (s->prot() != PROTpublic)
-            property("protection", protectionToChars(s->prot()));
+        if (s->prot().kind != PROTpublic)
+            property("protection", protectionToChars(s->prot().kind));
         if (s->aliasId)
             property("alias", s->aliasId->toChars());
 
@@ -641,17 +643,6 @@ public:
         objectEnd();
     }
 
-    void visit(TypedefDeclaration *d)
-    {
-        objectStart();
-
-        jsonProperties(d);
-
-        property("base", "baseDeco", d->basetype);
-
-        objectEnd();
-    }
-
     void visit(AggregateDeclaration *d)
     {
         objectStart();
@@ -663,7 +654,7 @@ public:
         {
             if (cd->baseClass && cd->baseClass->ident != Id::Object)
             {
-                property("base", cd->baseClass->toChars());
+                property("base", cd->baseClass->toPrettyChars(true));
             }
             if (cd->interfaces_dim)
             {
@@ -672,7 +663,7 @@ public:
                 for (size_t i = 0; i < cd->interfaces_dim; i++)
                 {
                     BaseClass *b = cd->interfaces[i];
-                    item(b->base->toChars());
+                    item(b->base->toPrettyChars(true));
                 }
                 arrayEnd();
             }
@@ -799,6 +790,12 @@ public:
             objectEnd();
         }
         arrayEnd();
+
+        Expression *expression = d->constraint;
+        if (expression)
+        {
+            property("constraint", expression->toChars());
+        }
 
         propertyStart("members");
         arrayStart();
