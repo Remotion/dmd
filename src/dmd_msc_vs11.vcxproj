@@ -66,7 +66,7 @@
       <OmitFramePointers Condition="'$(Configuration)'=='Release'">true</OmitFramePointers>
       <BufferSecurityCheck Condition="'$(Configuration)'=='Release'">false</BufferSecurityCheck>
       <StructMemberAlignment>1Byte</StructMemberAlignment>
-      <WarningLevel>Level3</WarningLevel>
+      <WarningLevel>Level4</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <CompileAs>CompileAsCpp</CompileAs>
       <ForcedIncludeFiles>vcbuild\warnings.h;%(ForcedIncludeFiles)</ForcedIncludeFiles>
@@ -108,7 +108,6 @@
     <ClCompile Include="cast.c" />
     <ClCompile Include="class.c" />
     <ClCompile Include="clone.c" />
-    <ClCompile Include="color.c" />
     <ClCompile Include="cond.c" />
     <ClCompile Include="constfold.c" />
     <ClCompile Include="cppmangle.c" />
@@ -121,8 +120,11 @@
     <ClCompile Include="eh.c" />
     <ClCompile Include="entity.c" />
     <ClCompile Include="enum.c" />
+    <ClCompile Include="errors.c" />
+    <ClCompile Include="escape.c" />
     <ClCompile Include="expression.c" />
     <ClCompile Include="func.c" />
+    <ClCompile Include="globals.c" />
     <ClCompile Include="glue.c" />
     <ClCompile Include="hdrgen.c" />
     <ClCompile Include="iasm.c" />
@@ -171,6 +173,7 @@
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="toir.c" />
+    <ClCompile Include="tokens.c" />
     <ClCompile Include="toobj.c" />
     <ClCompile Include="traits.c" />
     <ClCompile Include="typinf.c" />
@@ -242,9 +245,7 @@
     </ClCompile>
     <ClCompile Include="root\aav.c" />
     <ClCompile Include="root\async.c" />
-    <ClCompile Include="root\dmgcmem.c">
-      <ExcludedFromBuild>true</ExcludedFromBuild>
-    </ClCompile>
+    <ClCompile Include="root\checkedint.c" />
     <ClCompile Include="root\longdouble.c" />
     <ClCompile Include="root\man.c" />
     <ClCompile Include="root\port.c" />
@@ -256,10 +257,10 @@
     <ClCompile Include="root\outbuffer.c" />
     <ClCompile Include="root\speller.c" />
     <ClCompile Include="root\stringtable.c" />
-    <CustomBuild Include="idgen.c">
+    <CustomBuild Include="idgen.d">
       <Message>Building and running $(IntDir)%(Filename).exe</Message>
-      <Command>cl /TP /Fo$(IntDir)%(Filename).obj /Fe$(IntDir)%(Filename).exe %(Filename)%(Extension) &amp;&amp; $(IntDir)%(Filename).exe</Command>
-      <AdditionalInputs>idgen.c;%(AdditionalInputs)</AdditionalInputs>
+      <Command>dmd -od$(IntDir) -of$(IntDir)%(Filename).exe %(Filename)%(Extension) &amp;&amp; $(IntDir)%(Filename).exe</Command>
+      <AdditionalInputs>idgen.d;%(AdditionalInputs)</AdditionalInputs>
       <Outputs>id.c;id.h;$(IntDir)%(Filename).exe;%(Outputs)</Outputs>
     </CustomBuild>
     <CustomBuild Include="impcnvgen.c">
@@ -306,14 +307,15 @@
     <ClInclude Include="aliasthis.h" />
     <ClInclude Include="arraytypes.h" />
     <ClInclude Include="attrib.h" />
-    <ClInclude Include="color.h" />
     <ClInclude Include="complex_t.h" />
     <ClInclude Include="cond.h" />
     <ClInclude Include="declaration.h" />
     <ClInclude Include="doc.h" />
     <ClInclude Include="dsymbol.h" />
     <ClInclude Include="enum.h" />
+    <ClInclude Include="errors.h" />
     <ClInclude Include="expression.h" />
+    <ClInclude Include="globals.h" />
     <ClInclude Include="hdrgen.h" />
     <ClInclude Include="identifier.h" />
     <ClInclude Include="import.h" />
@@ -336,6 +338,7 @@
     <ClInclude Include="target.h" />
     <ClInclude Include="template.h" />
     <ClInclude Include="toir.h" />
+    <ClInclude Include="tokens.h" />
     <ClInclude Include="total.h" />
     <ClInclude Include="utf.h" />
     <ClInclude Include="version.h" />
@@ -373,6 +376,7 @@
     <ClInclude Include="tk\vec.h" />
     <ClInclude Include="root\aav.h" />
     <ClInclude Include="root\async.h" />
+    <ClInclude Include="root\checkedint.h" />
     <ClInclude Include="root\longdouble.h" />
     <ClInclude Include="root\port.h" />
     <ClInclude Include="root\rmem.h" />
